@@ -543,13 +543,21 @@ export default function DevOpsRoadmapKH() {
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem("devops_completed");
-      if (stored) {
-        setCompleted(JSON.parse(stored));
-      }
+      if (stored) setCompleted(JSON.parse(stored));
     } catch {
       setCompleted({});
     }
   }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (activeModule) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [activeModule]);
 
   const totalXP = Object.keys(completed).reduce((sum, id) => sum + (MODULES[parseInt(id)]?.xp || 0), 0);
   const maxXP = MODULES.reduce((s, m) => s + m.xp, 0);
@@ -561,8 +569,7 @@ export default function DevOpsRoadmapKH() {
   };
 
   const markComplete = (id: number) => {
-    const updated = { ...completed, [id]: true };
-    saveCompleted(updated);
+    saveCompleted({ ...completed, [id]: true });
   };
 
   const openModule = (mod: Module) => {
@@ -587,9 +594,7 @@ export default function DevOpsRoadmapKH() {
     const currentCorrect = quizState.selected === activeModule.quiz[quizState.idx].a ? 1 : 0;
     if (next >= activeModule.quiz.length) {
       setQuizState(prev => ({ ...prev, done: true }));
-      if (quizState.score + currentCorrect >= 2) {
-        markComplete(activeModule.id);
-      }
+      if (quizState.score + currentCorrect >= 2) markComplete(activeModule.id);
     } else {
       setQuizState({ idx: next, selected: null, score: quizState.score + currentCorrect, done: false });
     }
@@ -604,16 +609,16 @@ export default function DevOpsRoadmapKH() {
   const level = totalXP < 500 ? "Newcomer" : totalXP < 1200 ? "Junior DevOps" : totalXP < 2200 ? "Mid DevOps" : "Senior DevOps";
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "'IBM Plex Mono', 'Courier New', monospace", overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: "#0a0a0f", color: "#fff", fontFamily: "'IBM Plex Mono','Courier New',monospace", overflowX: "hidden" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;600;700&display=swap');
-        * { box-sizing: border-box; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+        .mod-card { transition: transform 0.2s, border-color 0.2s; cursor: pointer; }
         .mod-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.2) !important; }
-        .mod-card { transition: all 0.2s; cursor: pointer; }
-        .tab-btn { border: none; cursor: pointer; transition: all 0.15s; }
+        .tab-btn { border: none; cursor: pointer; transition: opacity 0.15s; }
         .tab-btn:hover { opacity: 0.9; }
         .flip-card { perspective: 800px; cursor: pointer; }
         .flip-inner { transition: transform 0.5s; transform-style: preserve-3d; position: relative; }
@@ -621,55 +626,266 @@ export default function DevOpsRoadmapKH() {
         .flip-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
         .flip-back { transform: rotateY(180deg); }
         .progress-bar { transition: width 0.6s ease; }
-        .quiz-opt { cursor: pointer; transition: all 0.15s; border: 1px solid #333; }
+        .quiz-opt { cursor: pointer; transition: background 0.15s, border-color 0.15s; border: 1px solid #333; border-radius: 10px; padding: 12px 14px; font-size: 13px; }
         .quiz-opt:hover { border-color: #555; background: #1a1a2e; }
         .khmer { font-family: 'Noto Sans Khmer', sans-serif; }
-        .glow-cyan { box-shadow: 0 0 20px rgba(6,182,212,0.15); }
-        .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; overflow-y: auto; display: flex; align-items: flex-start; justify-content: center; padding: 1rem; }
+        .glow-cyan { box-shadow: 0 0 20px rgba(6,182,212,0.1); }
+
+        /* Modal overlay */
+        .modal-bg {
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.88);
+          z-index: 200;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+          padding: 12px;
+        }
+        .modal-box {
+          background: #0d0d1a;
+          border: 1px solid #1e293b;
+          border-radius: 16px;
+          width: 100%;
+          max-width: 860px;
+          overflow: hidden;
+          margin: auto;
+          position: relative;
+        }
+
+        /* Tabs scroll on mobile */
+        .tabs-row {
+          display: flex;
+          border-bottom: 1px solid #1e293b;
+          background: #0a0a0f;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          scrollbar-width: none;
+        }
+        .tabs-row::-webkit-scrollbar { display: none; }
+        .tabs-row .tab-btn {
+          flex-shrink: 0;
+          padding: 12px 14px;
+          white-space: nowrap;
+          font-family: 'IBM Plex Mono','Courier New',monospace;
+          font-size: 12px;
+          background: transparent;
+          color: #64748b;
+          border-bottom: 2px solid transparent;
+        }
+
+        /* Tab content scroll */
+        .tab-content {
+          padding: 20px;
+          max-height: 60vh;
+          overflow-y: auto;
+          -webkit-overflow-scrolling: touch;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        .filter-bar input {
+          background: #111827;
+          border: 1px solid #1e293b;
+          color: #fff;
+          border-radius: 8px;
+          padding: 8px 12px;
+          font-size: 13px;
+          outline: none;
+          min-width: 0;
+          flex: 1 1 160px;
+          max-width: 260px;
+          font-family: 'Noto Sans Khmer', sans-serif;
+        }
+
+        /* Module grid */
+        .mod-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+          gap: 14px;
+        }
+
+        /* Hero layout */
+        .hero-inner {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 20px;
+          align-items: center;
+        }
+        .stats-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+          min-width: 160px;
+        }
+
+        /* 6-Month plan grid */
+        .plan-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+          gap: 10px;
+        }
+
+        /* Capstone pre */
+        .capstone-pre {
+          font-family: monospace;
+          font-size: 11px;
+          color: #06b6d4;
+          line-height: 1.8;
+          margin: 0;
+          overflow-x: auto;
+          white-space: pre;
+        }
+
+        /* Header flex */
+        .header-inner {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .header-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+
+        /* Modal header */
+        .modal-header {
+          border-bottom: 1px solid #1e293b;
+          padding: 14px 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 10px;
+        }
+        .modal-header-left {
+          display: flex;
+          align-items: flex-start;
+          gap: 10px;
+          flex: 1;
+          min-width: 0;
+        }
+        .modal-title {
+          font-size: clamp(15px, 3vw, 20px);
+          font-weight: 700;
+          word-break: break-word;
+        }
+        .modal-meta {
+          font-size: 10px;
+          font-weight: 700;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          white-space: normal;
+          word-break: break-word;
+        }
+
+        /* Flashcard height responsive */
+        .flash-card-wrap {
+          height: 180px;
+          margin-bottom: 14px;
+        }
+
+        /* ── MOBILE (≤ 480px) ── */
+        @media (max-width: 480px) {
+          .hero-inner { grid-template-columns: 1fr; }
+          .stats-grid { grid-template-columns: repeat(4,1fr); min-width: unset; }
+          .mod-grid { grid-template-columns: 1fr; }
+          .plan-grid { grid-template-columns: 1fr; }
+          .filter-bar input { max-width: 100%; }
+          .capstone-pre { font-size: 9px; }
+          .tab-content { max-height: 55vh; padding: 14px; }
+          .modal-box { border-radius: 12px; }
+          .flash-card-wrap { height: 160px; }
+          .modal-header { padding: 12px; }
+          .modal-icon { font-size: 24px !important; }
+          .modal-title { font-size: 14px; }
+          .modal-meta { font-size: 9px; }
+          .section-pad { padding: 0 12px 28px; }
+          .hero-pad { padding: 24px 12px 20px; }
+        }
+
+        /* ── TABLET (481–768px) ── */
+        @media (min-width: 481px) and (max-width: 768px) {
+          .hero-inner { grid-template-columns: 1fr; }
+          .stats-grid { grid-template-columns: repeat(4,1fr); min-width: unset; }
+          .mod-grid { grid-template-columns: repeat(2,1fr); }
+          .capstone-pre { font-size: 10px; }
+          .section-pad { padding: 0 16px 32px; }
+          .hero-pad { padding: 28px 16px 22px; }
+        }
+
+        /* ── LAPTOP / DESKTOP (≥ 769px) ── */
+        @media (min-width: 769px) {
+          .section-pad { padding: 0 20px 40px; }
+          .hero-pad { padding: 40px 20px 30px; }
+          .stats-grid { min-width: 200px; }
+        }
+
+        .tip-item {
+          display: flex;
+          align-items: flex-start;
+          gap: 8px;
+          padding: 8px 12px;
+          background: #111827;
+          border-radius: 8px;
+          border-left: 3px solid #06b6d4;
+          font-size: 13px;
+        }
         .btn-close:hover { background: #333 !important; }
-        .tip-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; background: #111827; border-radius: 8px; border-left: 3px solid #06b6d4; font-size: 13px; }
       `}</style>
 
-      {/* Header */}
-      <header style={{ borderBottom: "1px solid #1e1e2e", background: "rgba(10,10,15,0.9)", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(10px)" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      {/* ── HEADER ── */}
+      <header style={{ borderBottom: "1px solid #1e293b", background: "rgba(10,10,15,0.95)", position: "sticky", top: 0, zIndex: 50, backdropFilter: "blur(10px)" }}>
+        <div className="header-inner">
           <div>
-            <div style={{ fontSize: 20, fontWeight: 700, background: "linear-gradient(90deg,#06b6d4,#6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <div style={{ fontSize: "clamp(16px,4vw,20px)", fontWeight: 700, background: "linear-gradient(90deg,#06b6d4,#6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               DevOps Roadmap KH
             </div>
-            <div style={{ fontSize: 11, color: "#666", marginTop: 2 }} className="khmer">Enterprise Edition • ១២ Modules</div>
+            <div style={{ fontSize: 10, color: "#666", marginTop: 2 }} className="khmer">Enterprise Edition • ១២ Modules</div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 14px", fontSize: 12 }}>
+          <div className="header-right">
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "5px 12px", fontSize: 11 }}>
               <span style={{ color: "#06b6d4" }}>⬡ {totalXP} XP</span>
-              <span style={{ color: "#555", margin: "0 6px" }}>•</span>
+              <span style={{ color: "#555", margin: "0 5px" }}>•</span>
               <span style={{ color: "#a78bfa" }}>{level}</span>
             </div>
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "6px 14px", fontSize: 12 }}>
-              <span className="khmer" style={{ color: "#10b981" }}>{completedCount}/{MODULES.length} Module</span>
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 8, padding: "5px 12px", fontSize: 11 }}>
+              <span className="khmer" style={{ color: "#10b981" }}>{completedCount}/{MODULES.length}</span>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "40px 20px 30px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
+      {/* ── HERO ── */}
+      <section className="hero-pad" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="hero-inner">
           <div>
-            <div style={{ display: "inline-block", background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", borderRadius: 20, padding: "4px 14px", fontSize: 12, color: "#06b6d4", marginBottom: 16 }}>
+            <div style={{ display: "inline-block", background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", borderRadius: 20, padding: "4px 12px", fontSize: 11, color: "#06b6d4", marginBottom: 14 }}>
               🚀 Ultimate Systems Engineering Track
             </div>
-            <h1 style={{ fontSize: "clamp(28px,4vw,48px)", fontWeight: 700, lineHeight: 1.1, margin: "0 0 12px" }}>
+            <h1 style={{ fontSize: "clamp(26px,5vw,48px)", fontWeight: 700, lineHeight: 1.1, marginBottom: 12 }}>
               Master<br />
               <span style={{ background: "linear-gradient(90deg,#06b6d4,#6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>DevOps</span><br />
               Engineering
             </h1>
-            <p className="khmer" style={{ color: "#94a3b8", lineHeight: 1.7, fontSize: 14, maxWidth: 600, marginBottom: 20 }}>
+            <p className="khmer" style={{ color: "#94a3b8", lineHeight: 1.7, fontSize: "clamp(12px,2vw,14px)", maxWidth: 600, marginBottom: 18 }}>
               ពង្រឹងសមត្ថភាពបែប Production-Ready ចាប់ពី Linux, Docker, CI/CD, Kubernetes, Terraform, GitOps, Monitoring រហូតដល់ DevSecOps – ជាមួយ Quizzes, Flashcards, និង Labs ជាភាសាខ្មែរ!
             </p>
-            {/* Overall Progress */}
-            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "14px 18px", maxWidth: 500 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12 }}>
+            {/* Progress bar */}
+            <div style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 12, padding: "12px 16px", maxWidth: 500 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7, fontSize: 11 }}>
                 <span className="khmer" style={{ color: "#94a3b8" }}>ដំណើររបស់អ្នក</span>
                 <span style={{ color: "#06b6d4" }}>{Math.round((totalXP / maxXP) * 100)}% ({totalXP}/{maxXP} XP)</span>
               </div>
@@ -678,32 +894,30 @@ export default function DevOpsRoadmapKH() {
               </div>
             </div>
           </div>
-          {/* Stats Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, minWidth: 200 }}>
+          {/* Stats */}
+          <div className="stats-grid">
             {[
               { label: "Modules", val: MODULES.length, color: "#06b6d4" },
-              { label: "Completed", val: completedCount, color: "#10b981" },
-              { label: "Total XP", val: maxXP, color: "#6366f1" },
-              { label: "Your XP", val: totalXP, color: "#f97316" }
+              { label: "Done", val: completedCount, color: "#10b981" },
+              { label: "Max XP", val: maxXP, color: "#6366f1" },
+              { label: "My XP", val: totalXP, color: "#f97316" }
             ].map((s, i) => (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{s.label}</div>
+              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+                <div style={{ fontSize: "clamp(16px,3vw,22px)", fontWeight: 700, color: s.color }}>{s.val}</div>
+                <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>{s.label}</div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Filter Bar */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 24px" }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+      {/* ── FILTER BAR ── */}
+      <section className="section-pad" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="filter-bar">
           <input
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="🔍 ស្វែងរក Module..."
-            className="khmer"
-            style={{ background: "#111827", border: "1px solid #1e293b", color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 13, outline: "none", width: 220 }}
           />
           {DIFFICULTY_OPTIONS.map(d => {
             const active = filterDifficulty === d;
@@ -716,7 +930,10 @@ export default function DevOpsRoadmapKH() {
                   background: active ? color : "#111827",
                   border: `1px solid ${active ? color : "#1e293b"}`,
                   color: active ? "#fff" : "#94a3b8",
-                  borderRadius: 8, padding: "7px 14px", fontSize: 12, cursor: "pointer"
+                  borderRadius: 8, padding: "6px 12px",
+                  fontSize: "clamp(10px,2vw,12px)",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
                 }}
               >{d}</button>
             );
@@ -724,10 +941,10 @@ export default function DevOpsRoadmapKH() {
         </div>
       </section>
 
-      {/* Module Grid */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 40px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: 16 }}>
-          {filteredModules.map((mod, idx) => (
+      {/* ── MODULE GRID ── */}
+      <section className="section-pad" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="mod-grid">
+          {filteredModules.map(mod => (
             <div
               key={mod.id}
               className="mod-card glow-cyan"
@@ -741,26 +958,26 @@ export default function DevOpsRoadmapKH() {
               }}
             >
               {completed[mod.id] && (
-                <div style={{ position: "absolute", top: 10, right: 10, background: "#10b981", color: "#fff", borderRadius: 20, padding: "2px 8px", fontSize: 10, fontWeight: 700 }}>✓ DONE</div>
+                <div style={{ position: "absolute", top: 8, right: 8, background: "#10b981", color: "#fff", borderRadius: 20, padding: "2px 7px", fontSize: 9, fontWeight: 700 }}>✓ DONE</div>
               )}
-              <div style={{ height: 4, background: `linear-gradient(90deg, ${mod.color}, ${mod.color}88)` }} />
-              <div style={{ padding: "18px 18px 16px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                  <div style={{ fontSize: 28 }}>{mod.icon}</div>
-                  <div>
-                    <div style={{ fontSize: 11, color: mod.color, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>MODULE {String(mod.id + 1).padStart(2, "0")}</div>
-                    <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.2 }}>{mod.title}</div>
+              <div style={{ height: 3, background: `linear-gradient(90deg,${mod.color},${mod.color}88)` }} />
+              <div style={{ padding: "14px 14px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <div style={{ fontSize: 24, flexShrink: 0 }}>{mod.icon}</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: mod.color, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase" }}>M{String(mod.id + 1).padStart(2, "0")}</div>
+                    <div style={{ fontSize: "clamp(12px,2.5vw,15px)", fontWeight: 700, lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod.title}</div>
                   </div>
                 </div>
-                <p className="khmer" style={{ fontSize: 12, color: "#64748b", lineHeight: 1.5, marginBottom: 12, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <p className="khmer" style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {mod.content}
                 </p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ display: "flex", gap: 6 }}>
-                    <span style={{ background: DIFFICULTY_COLOR[mod.difficulty] + "22", color: DIFFICULTY_COLOR[mod.difficulty], border: `1px solid ${DIFFICULTY_COLOR[mod.difficulty]}44`, borderRadius: 5, padding: "2px 7px", fontSize: 10 }}>{mod.difficulty}</span>
-                    <span style={{ background: "#1e293b", color: "#64748b", borderRadius: 5, padding: "2px 7px", fontSize: 10 }}>{mod.duration}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 4 }}>
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                    <span style={{ background: DIFFICULTY_COLOR[mod.difficulty] + "22", color: DIFFICULTY_COLOR[mod.difficulty], border: `1px solid ${DIFFICULTY_COLOR[mod.difficulty]}44`, borderRadius: 5, padding: "2px 6px", fontSize: 9 }}>{mod.difficulty}</span>
+                    <span style={{ background: "#1e293b", color: "#64748b", borderRadius: 5, padding: "2px 6px", fontSize: 9 }}>{mod.duration}</span>
                   </div>
-                  <span style={{ color: mod.color, fontSize: 12, fontWeight: 700 }}>+{mod.xp} XP</span>
+                  <span style={{ color: mod.color, fontSize: 11, fontWeight: 700 }}>+{mod.xp} XP</span>
                 </div>
               </div>
             </div>
@@ -768,24 +985,24 @@ export default function DevOpsRoadmapKH() {
         </div>
       </section>
 
-      {/* 6-Month Plan */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 40px" }}>
-        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 16, padding: "28px" }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>📅 6-Month Hardcore Plan</h2>
-          <p className="khmer" style={{ color: "#64748b", fontSize: 13, marginBottom: 20 }}>កាលវិភាគ ២៤ សប្តាហ៍ ចាប់ពី 0 ដល់ Production-Ready DevOps Engineer</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 12 }}>
+      {/* ── 6-MONTH PLAN ── */}
+      <section className="section-pad" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 16, padding: "clamp(16px,3vw,28px)" }}>
+          <h2 style={{ fontSize: "clamp(16px,3vw,22px)", fontWeight: 700, marginBottom: 6 }}>📅 6-Month Hardcore Plan</h2>
+          <p className="khmer" style={{ color: "#64748b", fontSize: "clamp(11px,2vw,13px)", marginBottom: 16 }}>កាលវិភាគ ២៤ សប្តាហ៍ ចាប់ពី 0 ដល់ Production-Ready DevOps Engineer</p>
+          <div className="plan-grid">
             {[
               { month: "Month 1", kh: "ខែទី ១", focus: "Linux + Networking + Git", modules: [0,1,2] },
               { month: "Month 2", kh: "ខែទី ២", focus: "Bash Scripting + Python", modules: [3] },
               { month: "Month 3", kh: "ខែទី ៣", focus: "Docker + Microservices", modules: [4] },
               { month: "Month 4", kh: "ខែទី ៤", focus: "CI/CD + GitHub Actions", modules: [5] },
-              { month: "Month 5", kh: "ខែទី ៥", focus: "AWS Cloud + Kubernetes + ArgoCD", modules: [6,7,10] },
+              { month: "Month 5", kh: "ខែទី ៥", focus: "AWS Cloud + K8s + ArgoCD", modules: [6,7,10] },
               { month: "Month 6", kh: "ខែទី ៦", focus: "Terraform + Monitoring + DevSecOps", modules: [8,9,11] }
             ].map((p, i) => (
-              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "14px 16px" }}>
-                <div style={{ color: "#06b6d4", fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>{p.month}</div>
-                <div className="khmer" style={{ fontSize: 11, color: "#475569", marginBottom: 6 }}>{p.kh}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{p.focus}</div>
+              <div key={i} style={{ background: "#111827", border: "1px solid #1e293b", borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ color: "#06b6d4", fontSize: 10, fontWeight: 700, letterSpacing: 1 }}>{p.month}</div>
+                <div className="khmer" style={{ fontSize: 10, color: "#475569", marginBottom: 5 }}>{p.kh}</div>
+                <div style={{ fontSize: "clamp(11px,2vw,13px)", fontWeight: 600, marginBottom: 7 }}>{p.focus}</div>
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
                   {p.modules.map(mid => (
                     <span
@@ -801,142 +1018,141 @@ export default function DevOpsRoadmapKH() {
         </div>
       </section>
 
-      {/* Capstone Section */}
-      <section style={{ maxWidth: 1200, margin: "0 auto", padding: "0 20px 60px" }}>
-        <div style={{ background: "linear-gradient(135deg,rgba(6,182,212,0.08),rgba(99,102,241,0.08))", border: "1px solid rgba(6,182,212,0.2)", borderRadius: 20, padding: "32px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-            <div>
-              <div style={{ display: "inline-block", background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 20, padding: "4px 14px", fontSize: 11, color: "#a78bfa", marginBottom: 12 }}>🏆 CAPSTONE PROJECT</div>
-              <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>End-to-End GitOps Architecture</h2>
-              <p className="khmer" style={{ color: "#94a3b8", lineHeight: 1.7, fontSize: 14, maxWidth: 600 }}>
+      {/* ── CAPSTONE ── */}
+      <section className="section-pad" style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div style={{ background: "linear-gradient(135deg,rgba(6,182,212,0.07),rgba(99,102,241,0.07))", border: "1px solid rgba(6,182,212,0.2)", borderRadius: 20, padding: "clamp(16px,3vw,32px)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "inline-block", background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)", borderRadius: 20, padding: "4px 12px", fontSize: 10, color: "#a78bfa", marginBottom: 10 }}>🏆 CAPSTONE PROJECT</div>
+              <h2 style={{ fontSize: "clamp(16px,3vw,24px)", fontWeight: 700, marginBottom: 10 }}>End-to-End GitOps Architecture</h2>
+              <p className="khmer" style={{ color: "#94a3b8", lineHeight: 1.7, fontSize: "clamp(11px,2vw,14px)", maxWidth: 600 }}>
                 គម្រោងធំចុងក្រោយ - លើកដំបូងសាងប្រព័ន្ធ Automated Complete Pipeline: Code Push → Tests → Docker Build → ECR → ArgoCD → EKS → Prometheus/Grafana Monitoring → Telegram Alerts
               </p>
             </div>
-            <div style={{ fontSize: 64 }}>🚀</div>
+            <div style={{ fontSize: "clamp(40px,8vw,64px)" }}>🚀</div>
           </div>
-          <div style={{ marginTop: 20, background: "rgba(0,0,0,0.5)", borderRadius: 12, padding: "16px 20px", overflowX: "auto" }}>
-            <pre style={{ fontFamily: "monospace", fontSize: 12, color: "#06b6d4", lineHeight: 1.8, margin: 0 }}>{`[ Push Code ] → [ GitHub Actions CI ] → [ Run Tests + Security Scan ]
+          <div style={{ marginTop: 18, background: "rgba(0,0,0,0.5)", borderRadius: 12, padding: "14px 16px", overflowX: "auto" }}>
+            <pre className="capstone-pre">{`[ Push Code ] → [ GitHub Actions CI ] → [ Run Tests + Security Scan ]
        │                                            │
        ▼                                            ▼
-[ Build Docker Image ] ────────────────► [ Push to AWS ECR ]
+[ Build Docker Image ] ──────────────► [ Push to AWS ECR ]
                                                     │
                                                     ▼
-[ ArgoCD Detects New Tag ] ──────────► [ Auto-Deploy to EKS Cluster ]
+[ ArgoCD Detects New Tag ] ─────────► [ Auto-Deploy to EKS Cluster ]
                                                     │
                                                     ▼
-[ Prometheus Scrapes Metrics ] ────────► [ Grafana Dashboards ]
+[ Prometheus Scrapes Metrics ] ────► [ Grafana Dashboards ]
                                                     │
                                                     ▼
-[ Alert Rules Fired ] ─────────────────► [ Telegram Notification ]`}</pre>
+[ Alert Rules Fired ] ─────────────► [ Telegram Notification ]`}</pre>
           </div>
         </div>
       </section>
 
-      {/* Module Detail Modal */}
+      {/* ── MODULE MODAL ── */}
       {activeModule && (
-        <div className="modal-bg" onClick={e => e.target === e.currentTarget && closeModule()}>
-          <div style={{ background: "#0d0d1a", border: "1px solid #1e293b", borderRadius: 20, width: "100%", maxWidth: 860, overflow: "hidden", margin: "auto" }}>
+        <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) closeModule(); }}>
+          <div className="modal-box">
             {/* Modal Header */}
-            <div style={{ borderBottom: "1px solid #1e293b", padding: "18px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ fontSize: 32 }}>{activeModule.icon}</div>
-                <div>
-                  <div style={{ fontSize: 10, color: activeModule.color, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase" }}>MODULE {String(activeModule.id + 1).padStart(2, "0")} • {activeModule.difficulty} • {activeModule.duration} • +{activeModule.xp} XP</div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>{activeModule.title}</div>
-                  <div className="khmer" style={{ fontSize: 12, color: "#64748b" }}>{activeModule.titleKH}</div>
+            <div className="modal-header">
+              <div className="modal-header-left">
+                <div className="modal-icon" style={{ fontSize: 28, flexShrink: 0 }}>{activeModule.icon}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="modal-meta" style={{ color: activeModule.color }}>
+                    M{String(activeModule.id + 1).padStart(2,"0")} • {activeModule.difficulty} • {activeModule.duration} • +{activeModule.xp} XP
+                  </div>
+                  <div className="modal-title">{activeModule.title}</div>
+                  <div className="khmer" style={{ fontSize: 11, color: "#64748b" }}>{activeModule.titleKH}</div>
                 </div>
               </div>
-              <button className="btn-close" onClick={closeModule} style={{ background: "#1e293b", border: "none", color: "#fff", width: 34, height: 34, borderRadius: 8, cursor: "pointer", fontSize: 16 }}>✕</button>
+              <button
+                className="btn-close"
+                onClick={closeModule}
+                style={{ background: "#1e293b", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, cursor: "pointer", fontSize: 14, flexShrink: 0 }}
+              >✕</button>
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", borderBottom: "1px solid #1e293b", background: "#0a0a0f" }}>
+            <div className="tabs-row">
               {([
                 { id: "learn", label: "📖 Learn" },
-                { id: "code", label: "💻 Code" },
-                { id: "quiz", label: "🧪 Quiz" },
+                { id: "code",  label: "💻 Code" },
+                { id: "quiz",  label: "🧪 Quiz" },
                 { id: "flash", label: "🃏 Flashcards" },
-                { id: "tips", label: "💡 Tips" }
+                { id: "tips",  label: "💡 Tips" }
               ] as const).map(t => (
                 <button
                   key={t.id}
                   className="tab-btn"
                   onClick={() => setTab(t.id)}
                   style={{
-                    padding: "12px 18px",
-                    background: tab === t.id ? "#0d0d1a" : "transparent",
                     color: tab === t.id ? "#fff" : "#64748b",
                     borderBottom: tab === t.id ? `2px solid ${activeModule.color}` : "2px solid transparent",
-                    fontSize: 13,
-                    fontFamily: "inherit"
+                    background: tab === t.id ? "#0d0d1a" : "transparent"
                   }}
                 >{t.label}</button>
               ))}
             </div>
 
-            <div style={{ padding: 24, maxHeight: "75vh", overflowY: "auto" }}>
+            {/* Tab content */}
+            <div className="tab-content">
 
-              {/* LEARN TAB */}
+              {/* LEARN */}
               {tab === "learn" && (
                 <div>
-                  <p className="khmer" style={{ color: "#cbd5e1", lineHeight: 1.8, fontSize: 14, marginBottom: 24, background: "#111827", borderRadius: 10, padding: "16px 20px", borderLeft: `4px solid ${activeModule.color}` }}>
+                  <p className="khmer" style={{ color: "#cbd5e1", lineHeight: 1.8, fontSize: "clamp(12px,2vw,14px)", marginBottom: 20, background: "#111827", borderRadius: 10, padding: "14px 16px", borderLeft: `4px solid ${activeModule.color}` }}>
                     {activeModule.content}
                   </p>
-                  <h3 style={{ fontSize: 14, color: activeModule.color, marginBottom: 12, textTransform: "uppercase", letterSpacing: 1 }}>Core Skills ដែលត្រូវចេះ</h3>
-                  <div style={{ display: "grid", gap: 8 }}>
+                  <h3 style={{ fontSize: 12, color: activeModule.color, marginBottom: 10, textTransform: "uppercase", letterSpacing: 1 }}>Core Skills ដែលត្រូវចេះ</h3>
+                  <div style={{ display: "grid", gap: 7 }}>
                     {activeModule.points.map((pt, i) => (
-                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#111827", borderRadius: 8, padding: "10px 14px", border: "1px solid #1e293b" }}>
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: "#111827", borderRadius: 8, padding: "9px 12px", border: "1px solid #1e293b" }}>
                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: activeModule.color, flexShrink: 0 }} />
-                        <span style={{ fontSize: 13 }}>{pt}</span>
+                        <span style={{ fontSize: "clamp(11px,2vw,13px)" }}>{pt}</span>
                       </div>
                     ))}
                   </div>
                   {completed[activeModule.id] && (
-                    <div style={{ marginTop: 20, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 10, padding: "12px 16px", color: "#10b981", fontSize: 13, textAlign: "center" }} className="khmer">
+                    <div style={{ marginTop: 16, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 10, padding: "10px 14px", color: "#10b981", fontSize: 12, textAlign: "center" }} className="khmer">
                       ✅ អ្នកបានបញ្ចប់ Module នេះ! ({activeModule.xp} XP ទទួលបាន)
                     </div>
                   )}
                 </div>
               )}
 
-              {/* CODE TAB */}
+              {/* CODE */}
               {tab === "code" && (
-                <div>
-                  <div style={{ background: "#020617", borderRadius: 12, overflow: "hidden", border: "1px solid #1e293b" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px", background: "#0f172a", borderBottom: "1px solid #1e293b" }}>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#ef4444" }} />
-                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#f59e0b" }} />
-                        <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#10b981" }} />
-                        <span style={{ marginLeft: 8, fontSize: 11, color: "#475569" }}>production-lab.sh</span>
-                      </div>
-                      <span style={{ fontSize: 10, color: "#1e293b" }}>STRICT CODE</span>
-                    </div>
-                    <pre style={{ padding: "20px", fontSize: 12, color: "#4ade80", lineHeight: 1.7, overflowX: "auto", margin: 0 }}>
-                      <code>{activeModule.code}</code>
-                    </pre>
+                <div style={{ background: "#020617", borderRadius: 12, overflow: "hidden", border: "1px solid #1e293b" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "#0f172a", borderBottom: "1px solid #1e293b" }}>
+                    <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#ef4444" }} />
+                    <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#f59e0b" }} />
+                    <div style={{ width: 9, height: 9, borderRadius: "50%", background: "#10b981" }} />
+                    <span style={{ marginLeft: 6, fontSize: 10, color: "#475569" }}>production-lab.sh</span>
                   </div>
+                  <pre style={{ padding: "16px", fontSize: "clamp(10px,2vw,12px)", color: "#4ade80", lineHeight: 1.7, overflowX: "auto", margin: 0 }}>
+                    <code>{activeModule.code}</code>
+                  </pre>
                 </div>
               )}
 
-              {/* QUIZ TAB */}
+              {/* QUIZ */}
               {tab === "quiz" && (
                 <div>
                   {!quizState.done ? (
                     <div>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 12, color: "#64748b" }}>
-                        <span className="khmer">សំណួរ {quizState.idx + 1} / {activeModule.quiz.length}</span>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, fontSize: 11, color: "#64748b" }}>
+                        <span className="khmer">សំណួរ {quizState.idx + 1}/{activeModule.quiz.length}</span>
                         <span style={{ color: "#10b981" }}>Score: {quizState.score}</span>
                       </div>
-                      <div style={{ background: "#111827", borderRadius: 12, padding: "18px 20px", marginBottom: 16, border: "1px solid #1e293b" }}>
-                        <p className="khmer" style={{ fontSize: 16, fontWeight: 600, lineHeight: 1.6, margin: 0 }}>{activeModule.quiz[quizState.idx].q}</p>
+                      <div style={{ background: "#111827", borderRadius: 12, padding: "14px 16px", marginBottom: 12, border: "1px solid #1e293b" }}>
+                        <p className="khmer" style={{ fontSize: "clamp(13px,2.5vw,16px)", fontWeight: 600, lineHeight: 1.6 }}>{activeModule.quiz[quizState.idx].q}</p>
                       </div>
-                      <div style={{ display: "grid", gap: 8 }}>
+                      <div style={{ display: "grid", gap: 7 }}>
                         {activeModule.quiz[quizState.idx].options.map((opt, i) => {
                           const isSelected = quizState.selected === opt;
                           const isCorrect = opt === activeModule.quiz[quizState.idx].a;
                           const showResult = quizState.selected !== null;
-                          let bg = "#111827", border = "#1e293b", color = "#fff";
+                          let bg = "#111827", border = "#333", color = "#fff";
                           if (showResult) {
                             if (isCorrect) { bg = "rgba(16,185,129,0.15)"; border = "#10b981"; color = "#10b981"; }
                             else if (isSelected) { bg = "rgba(239,68,68,0.15)"; border = "#ef4444"; color = "#ef4444"; }
@@ -946,30 +1162,30 @@ export default function DevOpsRoadmapKH() {
                               key={i}
                               className="quiz-opt"
                               onClick={() => handleQuizAnswer(opt)}
-                              style={{ background: bg, borderColor: border, color, borderRadius: 10, padding: "12px 16px", fontSize: 13, cursor: showResult ? "default" : "pointer" }}
+                              style={{ background: bg, borderColor: border, color, cursor: showResult ? "default" : "pointer", fontSize: "clamp(11px,2vw,13px)" }}
                             >
-                              <span style={{ color: "#475569", marginRight: 8 }}>{"ABCD"[i]}.</span>{opt}
+                              <span style={{ color: "#475569", marginRight: 7 }}>{"ABCD"[i]}.</span>{opt}
                             </div>
                           );
                         })}
                       </div>
                       {quizState.selected && (
-                        <button onClick={nextQuestion} style={{ marginTop: 16, background: activeModule.color, border: "none", color: "#fff", borderRadius: 10, padding: "11px 24px", fontSize: 13, cursor: "pointer", width: "100%", fontFamily: "inherit", fontWeight: 700 }} className="khmer">
+                        <button onClick={nextQuestion} style={{ marginTop: 14, background: activeModule.color, border: "none", color: "#fff", borderRadius: 10, padding: "11px 20px", fontSize: 13, cursor: "pointer", width: "100%", fontFamily: "inherit", fontWeight: 700 }} className="khmer">
                           {quizState.idx + 1 >= activeModule.quiz.length ? "✅ ចប់ Quiz" : "▶ សំណួរបន្ទាប់"}
                         </button>
                       )}
                     </div>
                   ) : (
-                    <div style={{ textAlign: "center", padding: "24px 0" }}>
-                      <div style={{ fontSize: 56, marginBottom: 12 }}>{quizState.score >= 2 ? "🎉" : "📚"}</div>
-                      <div className="khmer" style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                      <div style={{ fontSize: 48, marginBottom: 10 }}>{quizState.score >= 2 ? "🎉" : "📚"}</div>
+                      <div className="khmer" style={{ fontSize: "clamp(16px,3vw,20px)", fontWeight: 700, marginBottom: 8 }}>
                         {quizState.score >= 2 ? "ល្អណាស់!" : "ព្យាយាមទៀតនៅ!"}
                       </div>
-                      <div style={{ color: "#94a3b8", fontSize: 14, marginBottom: 16 }} className="khmer">
-                        Score: {quizState.score}/{activeModule.quiz.length} • {quizState.score >= 2 ? `+${activeModule.xp} XP ទទួលបាន!` : "ត្រូវការ ≥ 2/3 ដើម្បីបញ្ចប់"}
+                      <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 14 }} className="khmer">
+                        Score: {quizState.score}/{activeModule.quiz.length} • {quizState.score >= 2 ? `+${activeModule.xp} XP ទទួលបាន!` : "ត្រូវការ ≥ 2/3"}
                       </div>
                       <button onClick={() => setQuizState({ idx: 0, selected: null, score: 0, done: false })}
-                        style={{ background: activeModule.color, border: "none", color: "#fff", borderRadius: 10, padding: "10px 24px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} className="khmer">
+                        style={{ background: activeModule.color, border: "none", color: "#fff", borderRadius: 10, padding: "10px 22px", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }} className="khmer">
                         🔄 ចាប់ Quiz ម្តងទៀត
                       </button>
                     </div>
@@ -977,61 +1193,63 @@ export default function DevOpsRoadmapKH() {
                 </div>
               )}
 
-              {/* FLASHCARDS TAB */}
+              {/* FLASHCARDS */}
               {tab === "flash" && (
                 <div>
-                  <div className="khmer" style={{ fontSize: 12, color: "#64748b", marginBottom: 14, textAlign: "center" }}>
-                    កាត {flashIdx + 1} / {activeModule.flashcards.length} • ចុចលើកាតដើម្បីបង្រលែង
+                  <div className="khmer" style={{ fontSize: 11, color: "#64748b", marginBottom: 12, textAlign: "center" }}>
+                    កាត {flashIdx + 1}/{activeModule.flashcards.length} • ចុចលើកាតដើម្បីបង្រលែង
                   </div>
-                  <div className="flip-card" onClick={() => setFlashFlipped(!flashFlipped)} style={{ height: 200, marginBottom: 16 }}>
+                  <div className="flip-card flash-card-wrap" onClick={() => setFlashFlipped(!flashFlipped)}>
                     <div className={`flip-inner ${flashFlipped ? "flipped" : ""}`} style={{ width: "100%", height: "100%" }}>
-                      <div className="flip-face" style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg, ${activeModule.color}22, #111827)`, border: `1px solid ${activeModule.color}44`, borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
-                        <div style={{ fontSize: 11, color: activeModule.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>TERM</div>
-                        <div style={{ fontSize: 22, fontWeight: 700, textAlign: "center" }}>{activeModule.flashcards[flashIdx].term}</div>
-                        <div style={{ fontSize: 11, color: "#475569", marginTop: 12 }}>👆 ចុចដើម្បីមើលការពន្យល់</div>
+                      <div className="flip-face" style={{ position: "absolute", inset: 0, background: `linear-gradient(135deg,${activeModule.color}22,#111827)`, border: `1px solid ${activeModule.color}44`, borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                        <div style={{ fontSize: 10, color: activeModule.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>TERM</div>
+                        <div style={{ fontSize: "clamp(16px,3vw,22px)", fontWeight: 700, textAlign: "center" }}>{activeModule.flashcards[flashIdx].term}</div>
+                        <div style={{ fontSize: 10, color: "#475569", marginTop: 10 }}>👆 ចុចដើម្បីមើលការពន្យល់</div>
                       </div>
-                      <div className="flip-face flip-back" style={{ position: "absolute", inset: 0, background: "#111827", border: "1px solid #1e293b", borderRadius: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
-                        <div style={{ fontSize: 11, color: "#10b981", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>DEFINITION</div>
-                        <p className="khmer" style={{ fontSize: 14, textAlign: "center", lineHeight: 1.7, color: "#e2e8f0", margin: 0 }}>{activeModule.flashcards[flashIdx].def}</p>
+                      <div className="flip-face flip-back" style={{ position: "absolute", inset: 0, background: "#111827", border: "1px solid #1e293b", borderRadius: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 20 }}>
+                        <div style={{ fontSize: 10, color: "#10b981", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>DEFINITION</div>
+                        <p className="khmer" style={{ fontSize: "clamp(11px,2vw,14px)", textAlign: "center", lineHeight: 1.7, color: "#e2e8f0" }}>{activeModule.flashcards[flashIdx].def}</p>
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                    <button onClick={() => { setFlashIdx(Math.max(0, flashIdx - 1)); setFlashFlipped(false); }}
+                  <div style={{ display: "flex", gap: 8, justifyContent: "center", marginBottom: 10 }}>
+                    <button
+                      onClick={() => { setFlashIdx(Math.max(0, flashIdx - 1)); setFlashFlipped(false); }}
                       disabled={flashIdx === 0}
-                      style={{ background: "#111827", border: "1px solid #1e293b", color: flashIdx === 0 ? "#333" : "#fff", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: flashIdx === 0 ? "default" : "pointer", fontFamily: "inherit" }}>
-                      ◀ មុន
+                      style={{ background: "#111827", border: "1px solid #1e293b", color: flashIdx === 0 ? "#333" : "#fff", borderRadius: 8, padding: "8px 18px", fontSize: 13, cursor: flashIdx === 0 ? "default" : "pointer", fontFamily: "inherit" }}>
+                      ◀
                     </button>
-                    <button onClick={() => { setFlashIdx(Math.min(activeModule.flashcards.length - 1, flashIdx + 1)); setFlashFlipped(false); }}
+                    <button
+                      onClick={() => { setFlashIdx(Math.min(activeModule.flashcards.length - 1, flashIdx + 1)); setFlashFlipped(false); }}
                       disabled={flashIdx === activeModule.flashcards.length - 1}
-                      style={{ background: flashIdx === activeModule.flashcards.length - 1 ? "#111827" : activeModule.color, border: "none", color: "#fff", borderRadius: 8, padding: "8px 20px", fontSize: 13, cursor: flashIdx === activeModule.flashcards.length - 1 ? "default" : "pointer", fontFamily: "inherit" }}>
-                      បន្ទាប់ ▶
+                      style={{ background: flashIdx === activeModule.flashcards.length - 1 ? "#111827" : activeModule.color, border: "none", color: "#fff", borderRadius: 8, padding: "8px 18px", fontSize: 13, cursor: flashIdx === activeModule.flashcards.length - 1 ? "default" : "pointer", fontFamily: "inherit" }}>
+                      ▶
                     </button>
                   </div>
-                  <div style={{ display: "flex", gap: 4, justifyContent: "center", marginTop: 12 }}>
+                  <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>
                     {activeModule.flashcards.map((_, i) => (
-                      <div key={i} onClick={() => { setFlashIdx(i); setFlashFlipped(false); }} style={{ width: 8, height: 8, borderRadius: "50%", background: i === flashIdx ? activeModule.color : "#1e293b", cursor: "pointer" }} />
+                      <div key={i} onClick={() => { setFlashIdx(i); setFlashFlipped(false); }} style={{ width: 7, height: 7, borderRadius: "50%", background: i === flashIdx ? activeModule.color : "#1e293b", cursor: "pointer" }} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* TIPS TAB */}
+              {/* TIPS */}
               {tab === "tips" && (
                 <div>
-                  <h3 className="khmer" style={{ fontSize: 15, marginBottom: 16, color: "#94a3b8" }}>💡 Pro Tips & Best Practices</h3>
-                  <div style={{ display: "grid", gap: 10 }}>
+                  <h3 className="khmer" style={{ fontSize: 14, marginBottom: 14, color: "#94a3b8" }}>💡 Pro Tips & Best Practices</h3>
+                  <div style={{ display: "grid", gap: 8 }}>
                     {activeModule.tips.map((tip, i) => (
                       <div key={i} className="tip-item">
                         <span style={{ color: "#06b6d4", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>
-                        <span className="khmer" style={{ color: "#cbd5e1", lineHeight: 1.6 }}>{tip}</span>
+                        <span className="khmer" style={{ color: "#cbd5e1", lineHeight: 1.6, fontSize: "clamp(11px,2vw,13px)" }}>{tip}</span>
                       </div>
                     ))}
                   </div>
                   {!completed[activeModule.id] && (
                     <button
-                      onClick={() => { markComplete(activeModule.id); }}
-                      style={{ marginTop: 24, background: `linear-gradient(90deg,${activeModule.color},#6366f1)`, border: "none", color: "#fff", borderRadius: 10, padding: "13px 24px", fontSize: 14, cursor: "pointer", width: "100%", fontFamily: "inherit", fontWeight: 700 }}
+                      onClick={() => markComplete(activeModule.id)}
+                      style={{ marginTop: 20, background: `linear-gradient(90deg,${activeModule.color},#6366f1)`, border: "none", color: "#fff", borderRadius: 10, padding: "12px 20px", fontSize: "clamp(12px,2vw,14px)", cursor: "pointer", width: "100%", fontFamily: "inherit", fontWeight: 700 }}
                       className="khmer"
                     >
                       ✅ Mark as Complete (+{activeModule.xp} XP)
@@ -1045,21 +1263,20 @@ export default function DevOpsRoadmapKH() {
         </div>
       )}
 
-      {/* Footer */}
-      <footer style={{ borderTop: "1px solid #1e293b", background: "#0a0a0f", padding: "32px 20px", textAlign: "center" }}>
+      {/* ── FOOTER ── */}
+      <footer style={{ borderTop: "1px solid #1e293b", background: "#0a0a0f", padding: "24px 16px", textAlign: "center" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, background: "linear-gradient(90deg,#06b6d4,#6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 10 }}>
+          <div style={{ fontSize: "clamp(14px,3vw,20px)", fontWeight: 700, background: "linear-gradient(90deg,#06b6d4,#6366f1)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 8 }}>
             Become a Professional DevOps Engineer 🚀
           </div>
-          <p className="khmer" style={{ color: "#475569", fontSize: 13, maxWidth: 500, margin: "0 auto 20px" }}>
+          <p className="khmer" style={{ color: "#475569", fontSize: "clamp(11px,2vw,13px)", maxWidth: 500, margin: "0 auto 16px" }}>
             ជំនាញ DevOps សន្សំចេញពីការជួប Error រាប់រយដង ការ Debug Logs ហើយការដោះស្រាយបញ្ហាពិតប្រាកដ
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-            {["Linux", "Git", "Docker", "K8s", "Terraform", "AWS", "ArgoCD", "Prometheus", "DevSecOps"].map((t, i) => (
-              <span key={i} style={{ background: "#111827", border: "1px solid #1e293b", color: "#64748b", borderRadius: 6, padding: "4px 10px", fontSize: 11 }}>{t}</span>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center" }}>
+            {["Linux","Git","Docker","K8s","Terraform","AWS","ArgoCD","Prometheus","DevSecOps"].map((t, i) => (
+              <span key={i} style={{ background: "#111827", border: "1px solid #1e293b", color: "#64748b", borderRadius: 6, padding: "3px 9px", fontSize: 10 }}>{t}</span>
             ))}
           </div>
-          <div style={{ marginTop: 20, fontSize: 11, color: "#1e293b" }}>DEVOPS ROADMAP KH • ENTERPRISE EDITION • DESIGNED FOR KHMER DEVELOPERS</div>
         </div>
       </footer>
     </div>

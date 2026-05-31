@@ -869,16 +869,24 @@ const LEARNING_PATH = [
 export default function DevOpsRoadmapKH() {
   const [activeModule, setActiveModule] = useState<Module | null>(null);
   const [tab, setTab] = useState<"learn"|"code"|"quiz"|"flash"|"tips">("learn");
-  const [completed, setCompleted] = useState<Record<string, boolean>>(() => {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(window.localStorage.getItem("devops_completed") || "{}"); } catch { return {}; }
-  });
+  const [completed, setCompleted] = useState<Record<string, boolean>>({});
   const [quizState, setQuizState] = useState({ idx: 0, selected: null as string|null, score: 0, done: false });
   const [flashIdx, setFlashIdx] = useState(0);
   const [flashFlipped, setFlashFlipped] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDifficulty, setFilterDifficulty] = useState<"All"|Module["difficulty"]>("All");
   const [showPath, setShowPath] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("devops_completed");
+      if (stored) {
+        setCompleted(JSON.parse(stored));
+      }
+    } catch {
+      // ignore invalid stored state
+    }
+  }, []);
 
   useEffect(() => {
     if (activeModule) { document.body.style.overflow = "hidden"; }

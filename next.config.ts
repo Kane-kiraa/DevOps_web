@@ -2,11 +2,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'export',
-  
-  // ត្រូវដាក់ឈ្មោះ Repository របស់អ្នក (មានសញ្ញា / ពីមុខ)
-  // ដើម្បីកុំឱ្យ Next.js វង្វេងផ្លូវពេលទាញយកឯកសារ CSS/JS មកបង្ហាញ
-  basePath: '/DevOps_web', 
-  
+
+  // Use a configurable basePath so local dev can run at / while GitHub Pages
+  // deployment can still be served under /DevOps_web.
+  basePath: process.env.NEXT_PUBLIC_BASE_PATH || '',
+
   images: {
     unoptimized: true,
   },
